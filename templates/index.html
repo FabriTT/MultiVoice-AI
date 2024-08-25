@@ -97,41 +97,41 @@
   </style>
 </head>
 <body>
-  <h1>TRADUCTOR DE AUDIO</h1>
+  <h1>AUDIO TRANSLATOR</h1>
 
   <form id="audio-form" enctype="multipart/form-data">
-    <h2>CARGAR O GRABAR AUDIO</h2>
+    <h2>UPLOAD OR RECORD AUDIO</h2>
     <input type="file" id="audio-file" name="audio" accept="audio/*" />
     <br /><br />
-    <button type="button" id="start-recording">Comenzar a grabar voz</button>
-    <button type="button" id="stop-recording" disabled>Parar Grabación</button>
+    <button type="button" id="start-recording">Start Recording</button>
+    <button type="button" id="stop-recording" disabled>Stop Recording</button>
     <br /><br />
-    <p>Idioma original</p>
+    <p>Original Language</p>
     <select id="language">
       <option value="es-ES">Spanish</option>
       <option value="en-US">English</option>
     </select>
-    <p>Idioma de traducción</p>
+    <p>Translation Language</p>
     <select id="target-language">
       <option value="es">Spanish</option>
       <option value="en">English</option>
     </select>
     <br /><br />
-    <button type="submit">Procesar Audio</button>
+    <button type="submit">Process Audio</button>
   </form>
 
-  <h2>Audio Cargado</h2>
+  <h2>Uploaded Audio</h2>
   <audio id="audio-player" controls></audio>
 
-  <h2>Transcripción</h2>
+  <h2>Transcription</h2>
   <pre id="transcription"></pre>
 
-  <h2>Texto traducido</h2>
+  <h2>Translated Text</h2>
   <pre id="translation"></pre>
   <audio id="translation-audio" controls></audio>
 
   <div class="button-container">
-    <button type="button" id="run-sign-language">Ejecutar Reconocimiento de Lenguaje de Señas</button>
+    <button type="button" id="run-sign-language">Run Sign Language Recognition</button>
   </div>
 
   <script>
@@ -155,14 +155,14 @@
         let formData = new FormData();
         formData.append("language", language);
 
-        console.log("Verificando recordedBlob:", recordedBlob);
+        console.log("Checking recordedBlob:", recordedBlob);
         if (recordedBlob) {
-          console.log("Enviando Blob grabado");
+          console.log("Sending recorded Blob");
           formData.append("audio", recordedBlob, "recorded_audio.ogg");
         } else if (fileInput.files.length > 0) {
           formData.append("audio", fileInput.files[0]);
         } else {
-          alert("Por favor, suba un archivo o grabe un audio.");
+          alert("Please upload a file or record an audio.");
           return;
         }
 
@@ -262,7 +262,7 @@
           .then((response) => response.json())
           .then((data) => {
             console.log("Response:", data);
-            alert("El reconocimiento de lenguaje de señas ha comenzado.");
+            alert("Sign language recognition has started.");
           })
           .catch((error) => console.error("Error:", error));
       });
