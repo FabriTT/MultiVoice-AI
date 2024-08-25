@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Translator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      background-color: #ff9900;
+      color: white;
+      padding: 20px;
+      width: 100%;
+      text-align: center;
+      margin: 0;
+    }
+
+    form {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin: 20px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    h2 {
+      border-bottom: 2px solid #ff9900;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      color: #ff9900;
+    }
+
+    input[type="file"], 
+    button, 
+    select {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+    }
+
+    button {
+      background-color: #ff9900;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #ddd;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #ff9900;
+    }
+
+    #audio-player, 
+    #translation-audio {
+      margin: 20px 0;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    pre {
+      background-color: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px;
+      overflow-x: auto;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .button-container {
+      text-align: center;
+      width: 100%;
+      margin: 20px 0;
+    }
+
+    .button-container button {
+      display: inline-block;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>TRADUCTOR DE AUDIO</h1>
+
+  <form id="audio-form" enctype="multipart/form-data">
+    <h2>CARGAR O GRABAR AUDIO</h2>
+    <input type="file" id="audio-file" name="audio" accept="audio/*" />
+    <br /><br />
+    <button type="button" id="start-recording">Comenzar a grabar voz</button>
+    <button type="button" id="stop-recording" disabled>Parar Grabación</button>
+    <br /><br />
+    <p>Idioma original</p>
+    <select id="language">
+      <option value="es-ES">Spanish</option>
+      <option value="en-US">English</option>
+    </select>
+    <p>Idioma de traducción</p>
+    <select id="target-language">
+      <option value="es">Spanish</option>
+      <option value="en">English</option>
+    </select>
+    <br /><br />
+    <button type="submit">Procesar Audio</button>
+  </form>
+
+  <h2>Audio Cargado</h2>
+  <audio id="audio-player" controls></audio>
+
+  <h2>Transcripción</h2>
+  <pre id="transcription"></pre>
+
+  <h2>Texto traducido</h2>
+  <pre id="translation"></pre>
+  <audio id="translation-audio" controls></audio>
+
+  <div class="button-container">
+    <button type="button" id="run-sign-language">Ejecutar Reconocimiento de Lenguaje de Señas</button>
+  </div>
+
+  <script>
+    let mediaRecorder;
+    let recordedBlob;
+
+    function logFormData(formData) {
+      for (let pair of formData.entries()) {
+        console.log(`${pair[0]}: ${pair[1]}`);
+      }
+    }
+
+    document
+      .getElementById("audio-form")
+      .addEventListener("submit", function (e) {
+        e.preventDefault();
+        let fileInput = document.getElementById("audio-file");
+        let language = document.getElementById("language").value;
+        let targetLanguage = document.getElementById("target-language").value;
+
+        let formData = new FormData();
+        formData.append("language", language);
+
+        console.log("Verificando recordedBlob:", recordedBlob);
+        if (recordedBlob) {
+          console.log("Enviando Blob grabado");
+          formData.append("audio", recordedBlob, "recorded_audio.ogg");
+        } else if (fileInput.files.length > 0) {
+          formData.append("audio", fileInput.files[0]);
+        } else {
+          alert("Por favor, suba un archivo o grabe un audio.");
+          return;
+        }
+
+        fetch("/transcribe", {
+          method: "POST",
+          body: formData,
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.transcript) {
+              document.getElementById("transcription").textContent = data.transcript;
+
+              return fetch("/translate", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  text: data.transcript,
+                  sourceLang: language.split("-")[0],
+                  targetLang: targetLanguage,
+                }),
+              });
+            }
+          })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.translation) {
+              document.getElementById("translation").textContent = data.translation;
+
+              if (data.audio_url) {
+                const audioElement = document.getElementById("translation-audio");
+                const uniqueUrl = `${data.audio_url}?timestamp=${new Date().getTime()}`;
+                audioElement.src = uniqueUrl;
+                audioElement.style.display = "block";
+              }
+            }
+          })
+          .catch((error) => console.error("Error:", error));
+      });
+
+    document
+      .getElementById("start-recording")
+      .addEventListener("click", function () {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            mediaRecorder = new MediaRecorder(stream);
+            let chunks = [];
+
+            mediaRecorder.ondataavailable = function (event) {
+              if (event.data.size > 0) {
+                chunks.push(event.data);
+              }
+            };
+
+            mediaRecorder.onstop = function () {
+              recordedBlob = new Blob(chunks, { type: "audio/webm" });
+              let recordedURL = URL.createObjectURL(recordedBlob);
+              document.getElementById("audio-player").src = recordedURL;
+
+              const file = new File([recordedBlob], "recorded_audio.webm", {
+                type: "audio/webm",
+                lastModified: new Date().getTime(),
+              });
+
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(file);
+              document.getElementById("audio-file").files = dataTransfer.files;
+            };
+
+            mediaRecorder.start();
+            document.getElementById("start-recording").disabled = true;
+            document.getElementById("stop-recording").disabled = false;
+          })
+          .catch((error) =>
+            console.error("Error accessing media devices.", error)
+          );
+      });
+
+    document
+      .getElementById("stop-recording")
+      .addEventListener("click", function () {
+        if (mediaRecorder) {
+          mediaRecorder.stop();
+          document.getElementById("start-recording").disabled = false;
+          document.getElementById("stop-recording").disabled = true;
+        }
+      });
+
+    document
+      .getElementById("run-sign-language")
+      .addEventListener("click", function () {
+        fetch("/run-sign-language", {
+          method: "POST",
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log("Response:", data);
+            alert("El reconocimiento de lenguaje de señas ha comenzado.");
+          })
+          .catch((error) => console.error("Error:", error));
+      });
+  </script>
+</body>
+</html>
